@@ -1,6 +1,5 @@
 require_relative "piece"
-
-class InvalidMoveError < StandardError; end
+require_relative "exceptions"
 
 class Board
   def initialize
@@ -23,25 +22,17 @@ class Board
   def dup
     dup = Board.new
     pieces.each do |piece|
-      position, color, king = piece.position, piece.color, piece.king?
+      position, color, king = piece.color, piece.position, piece.king?
       dup.place_piece(position, color, king)
     end
 
     dup
   end
 
-  def perform_jump(origin, destination)
-    perform_move("jump", origin, destination)
-    jumped = Board.in_between(origin, destination)
-    self[jumped] = nil
-  end
-
-  def perform_slide(origin, destination)
-    perform_move("slide", origin, destination)
-  end
-
-  def place_piece(color, position, king = false)
-    self[position] = Piece.new(color, position, self)
+  def perform_moves(moves)
+    raise InvalidMoveError unless valid_move_seq?(moves)
+    perform_moves!(moves)
+    nil
   end
 
   def self.in_between(origin, destination)
@@ -53,8 +44,8 @@ class Board
   end
 
   def set_pieces
-    set_team_pieces([0, 1, 2], :black)
-    set_team_pieces([5, 6, 7], :red)
+    [0, 1, 2].each { |row| set_row(row, :black) }
+    [5, 6, 7].each { |row| set_row(row, :red) }
     self
   end
 
@@ -66,12 +57,37 @@ class Board
     end.join("\n--------------------------------\n")
   end
 
+  def winner
+    pieces[0].color if won?
+  end
+
+  def won?
+    @pieces.map(&:color).uniq.size == 1
+  end
+
   protected
 
   def []=(position, piece)
     i, j = position
     @rows[i][j] = piece
     piece.position = position unless piece.nil?
+  end
+
+  def place_piece(color, position, king = false)
+    self[position] = Piece.new(color, position, self)
+  end
+
+  def perform_moves!(moves)
+    if moves.all? { |move| jump?(move) }
+      moves.each do |origin, destination|
+        perform_jump(origin, destination)
+      end
+    elsif slide?(moves.first) && moves.count == 1
+      origin, destination = moves.first
+      perform_slide(origin, destination)
+    else
+      raise InvalidMoveError.new("Enter either one slide move or a series of jumps.")
+    end
   end
 
   private
@@ -81,31 +97,61 @@ class Board
     self[position].nil?
   end
 
+  def jump?(move)
+    origin, destination = move
+    origin.each_with_index.all? { |coord, i| (coord - destination[i]).abs == 2 }
+  end
+
   def on_board?(position)
     position.all? { |coord| coord.between?(0, 7) }
   end
 
   def perform_move(type, origin, destination)
-    piece = self[origin]
-    move_type_method = (type + "_moves").to_sym
+    unless type == :jump_moves || type == :slide_moves
+      raise ArgumentError.new("Type must be :jump_moves or :slide_moves.")
+    end
 
-    unless piece.send(move_type_method).include?(destination)
-      raise InvalidMoveError.new("The piece at #{origin} can't move to #{destination}!")
+    piece = self[origin]
+
+    unless piece.send(type).include?(destination)
+      raise InvalidMoveError.new("The piece at #{origin} can't move to #{destination}.")
     end
 
     self[destination] = piece
     self[origin] = nil
   end
 
+  def perform_jump(origin, destination)
+    perform_move(:jump_moves, origin, destination)
+    jumped = Board.in_between(origin, destination)
+    self[jumped] = nil
+  end
+
+  def perform_slide(origin, destination)
+    perform_move(:slide_moves, origin, destination)
+  end
+
   def pieces
     @rows.flatten.compact
   end
 
-  def set_team_pieces(rows, color)
-    rows.each do |row|
-      8.times do |col|
-        place_piece(color, [row, col]) if (row + col).odd?
-      end
+  def set_row(row, color)
+    8.times { |col| place_piece(color, [row, col]) if (row + col).odd? }
+  end
+
+  def slide?(move)
+    origin, destination = move
+    origin.each_with_index.all? { |coord, i| (coord - destination[i]).abs == 1 }
+  end
+
+  def valid_move_seq?(moves)
+    begin
+      dup = self.dup
+      dup.perform_moves!(moves)
+      true
+    rescue StandardError => e
+      puts e
+      false
     end
   end
 end
