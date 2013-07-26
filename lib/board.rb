@@ -88,6 +88,11 @@ class Board
       end
     elsif slide?(moves.first) && moves.count == 1
       origin, destination = moves.first
+
+      if team_can_jump?(self[origin].color)
+        raise InvalidMoveError.new("You must take a piece if you can.")
+      end
+
       perform_slide(origin, destination)
     else
       raise InvalidMoveError.new("Enter either one slide move or a series of jumps.")
@@ -148,6 +153,10 @@ class Board
   def slide?(move)
     origin, destination = move
     origin.each_with_index.all? { |coord, i| (coord - destination[i]).abs == 1 }
+  end
+
+  def team_can_jump?(color)
+    pieces.any? { |piece| !piece.jump_moves.empty? && piece.color == color }
   end
 
   def valid_move_seq?(moves)
