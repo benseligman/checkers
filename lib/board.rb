@@ -1,6 +1,5 @@
 require_relative "./piece"
 require_relative "./exceptions"
-require "debugger"
 
 class Board
   def initialize
@@ -112,7 +111,6 @@ class Board
   end
 
   def perform_move(type, origin, destination)
-    debugger
     unless type == :jump_moves || type == :slide_moves
       raise ArgumentError.new("Type must be :jump_moves or :slide_moves.")
     end
@@ -157,7 +155,7 @@ class Board
       dup = self.dup
       dup.perform_moves!(moves)
       true
-    rescue StandardError => e
+    rescue InvalidMoveError => e
       puts e
       false
     end
