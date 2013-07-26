@@ -1,14 +1,24 @@
 require 'debugger'
 
 class Piece
-  attr_accessor :position
-  attr_reader :king, :color
+  attr_accessor :position, :king, :awaiting_coronation
+  attr_reader :color
 
   def initialize(color, position, board, king = false)
     @color, @position, @board, @king = color, position, board, king
+    @awaiting_coronation = false
   end
 
   alias_method :king?, :king
+
+  def all_moves
+    jump_moves + slide_moves
+  end
+
+  def coronate
+    @king = true if @awaiting_coronation
+    @awaiting_coronation = false
+  end
 
   def orientation
     return [1, -1] if king?

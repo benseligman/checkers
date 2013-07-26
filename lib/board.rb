@@ -1,5 +1,6 @@
-require_relative "piece"
-require_relative "exceptions"
+require_relative "./piece"
+require_relative "./exceptions"
+require "debugger"
 
 class Board
   def initialize
@@ -21,6 +22,7 @@ class Board
 
   def dup
     dup = Board.new
+
     pieces.each do |piece|
       position, color, king = piece.color, piece.position, piece.king?
       dup.place_piece(position, color, king)
@@ -30,8 +32,13 @@ class Board
   end
 
   def perform_moves(moves)
-    raise InvalidMoveError unless valid_move_seq?(moves)
+    unless valid_move_seq?(moves)
+      raise InvalidMoveError.new("Enter a valid move.")
+    end
+
     perform_moves!(moves)
+    piece = self[moves.last.last]
+    piece.coronate
     nil
   end
 
@@ -57,12 +64,10 @@ class Board
     end.join("\n--------------------------------\n")
   end
 
-  def winner
-    pieces[0].color if won?
-  end
-
-  def won?
-    @pieces.map(&:color).uniq.size == 1
+  def lost?(color)
+    team = pieces.select { |piece| piece.color == color }
+    team_moves = team.map { |piece| piece.all_moves }.flatten(1)
+    team_moves.empty?
   end
 
   protected
@@ -74,7 +79,7 @@ class Board
   end
 
   def place_piece(color, position, king = false)
-    self[position] = Piece.new(color, position, self)
+    self[position] = Piece.new(color, position, self, king)
   end
 
   def perform_moves!(moves)
@@ -107,6 +112,7 @@ class Board
   end
 
   def perform_move(type, origin, destination)
+    debugger
     unless type == :jump_moves || type == :slide_moves
       raise ArgumentError.new("Type must be :jump_moves or :slide_moves.")
     end
@@ -119,6 +125,8 @@ class Board
 
     self[destination] = piece
     self[origin] = nil
+
+    piece.awaiting_coronation = true if [0, 7].include?(destination[0])
   end
 
   def perform_jump(origin, destination)
